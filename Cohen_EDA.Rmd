@@ -11,6 +11,7 @@ library(tidyverse)
 library(gtable)
 library(gtsummary)
 library(gridExtra)
+library(knitr)
 
 data <- readRDS("Dataset.RData")
 ```
@@ -24,6 +25,8 @@ long_data <- cancerdata %>%
 
 genes <- c("TLR4","CIITA","KLRD1","MC3R","NAMPT")
 
+## prop infiltrated ~ gene expression * gender
+
 long_data %>%
   filter(gene %in% genes) %>%
   ggplot(aes(x = exp, y = prop_infiltrated, col = gender)) +
@@ -32,5 +35,37 @@ long_data %>%
   facet_wrap(~gene) +
   scale_color_manual(values = c("cornflowerblue","darkgoldenrod2")) +
   theme_classic()
+
+## survival ~ gene expression
+
+long_data %>%
+  filter(gene %in% genes & !is.na(survival)) %>%
+  ggplot(aes(x = exp, y = survival)) +
+  geom_boxplot() +
+  facet_wrap(~gene, scales = "free_x") +
+  theme_classic()
+
+
+## stage ~ gene expression
+
+long_data %>%
+  filter(gene %in% genes & !is.na(stage)) %>%
+  ggplot(aes(x = exp, y = stage)) +
+  geom_boxplot(aes(group = stage)) +
+  facet_wrap(~gene, scales = "free_x") +
+  theme_classic()
 ```
 
+```{r}
+## tbl_summary object
+
+cancerdata %>%
+  tbl_summary(include = -id, by = survival) %>%
+  add_p() %>%
+  bold_labels() %>%
+  add_overall() %>%
+  bold_p()
+
+colSums(is.na(cancerdata)) %>%
+  kable()
+```
