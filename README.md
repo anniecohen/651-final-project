@@ -3,7 +3,7 @@
 ### Keep track of our code in this repo
 `Dataset.RData` : original data set
 
-`Cohen_EDA.Rmd / .pdf` : preliminary EDA for Annie's genes w/ code for `ggplot` and `tbl_summary` object
+`Cohen_EDA.Rmd & .pdf` : preliminary EDA for Annie's genes w/ code for `ggplot` and `tbl_summary` object
 
 * ignore the `_cache` and `_files` folders
 
