@@ -26,14 +26,6 @@ genes <- c("TLR4","CIITA","KLRD1","MC3R","NAMPT")
 
 long_data %>%
   filter(gene %in% genes) %>%
-  ggplot(aes(x = exp, y = prop_infiltrated, col = survival), alpha = 0.05) +
-  geom_point() +
-  facet_wrap(~gene) +
-  scale_color_manual(values = c("darkgreen","orange")) +
-  theme_classic()
-
-long_data %>%
-  filter(gene %in% genes) %>%
   ggplot(aes(x = exp, y = prop_infiltrated, col = gender)) +
   geom_point(alpha = 0.5) +
   geom_smooth(method = 'lm', formula = 'y~x', se = FALSE) +
