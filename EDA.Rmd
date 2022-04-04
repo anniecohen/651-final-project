@@ -1,0 +1,44 @@
+---
+title: "Final project"
+author: "Annie Cohen"
+date: "3/26/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE)
+library(tidyverse)
+library(gtable)
+library(gtsummary)
+library(gridExtra)
+
+data <- readRDS("Dataset.RData")
+```
+
+```{r}
+cancerdata <- data %>%
+  mutate(prop_infiltrated = infiltration_count/tile_count)
+
+long_data <- cancerdata %>%
+  pivot_longer(-colnames(cancerdata[,c(1:8,34)]), names_to = "gene", values_to = "exp")
+
+genes <- c("TLR4","CIITA","KLRD1","MC3R","NAMPT")
+
+long_data %>%
+  filter(gene %in% genes) %>%
+  ggplot(aes(x = exp, y = prop_infiltrated, col = survival), alpha = 0.05) +
+  geom_point() +
+  facet_wrap(~gene) +
+  scale_color_manual(values = c("darkgreen","orange")) +
+  theme_classic()
+
+long_data %>%
+  filter(gene %in% genes) %>%
+  ggplot(aes(x = exp, y = prop_infiltrated, col = gender)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = 'lm', formula = 'y~x', se = FALSE) +
+  facet_wrap(~gene) +
+  scale_color_manual(values = c("cornflowerblue","darkgoldenrod2")) +
+  theme_classic()
+```
+
