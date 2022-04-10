@@ -3,7 +3,7 @@
 ### Keep track of our code in this repo
 `Dataset.RData` : original data set
 
-`Cohen_EDA.Rmd & .pdf` : preliminary EDA for Annie's genes
+`Cohen_EDA.Rmd & .pdf` : preliminary EDA
 
 `Cohen_modeling.Rmd & .pdf` : model fitting and diagnostics for the main effects model w/o inflammation genes
 
