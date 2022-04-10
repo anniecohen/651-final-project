@@ -1,0 +1,88 @@
+---
+title: "Model 1"
+author: "Annie Cohen"
+date: "4/9/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(gtable)
+library(gtsummary)
+library(gridExtra)
+library(knitr)
+library(car)
+library(boot)
+```
+
+```{r model 1}
+melanoma <- readRDS("Dataset.RData") %>%
+  mutate(age_c = mean(age)-age,
+         trans_class_bin = ifelse(trans_class == "immune",1,0),
+         prop_infiltrated = infiltration_count/tile_count)
+
+model1 <- glm(prop_infiltrated ~ KLRD1+RFX5+DDX58+EIF2AK2+CCL28+CD86+C5+DCK+age_c+gender+stage+trans_class_bin, 
+              data = melanoma, 
+              weights = tile_count, 
+              family = binomial(link=logit)) 
+
+model1 %>%
+  summary()
+```
+
+```{r VIF}
+kable(data.frame("VIF" = vif(model1)))
+```
+
+```{r deviance & AIC}
+model1$null.deviance-model1$deviance
+model1$df.null-model1$df.residual
+
+model1$null.deviance
+model1$deviance
+model1$df.null
+model1$df.residual
+model1$aic
+```
+
+```{r}
+model1.diag <- glm.diag(model1)
+
+data.frame("cooks" = model1.diag$cook, "leverage" = model1.diag$h) %>%
+  pivot_longer(everything(), names_to = "measure") %>%
+  mutate(cutoff = ifelse(measure=="cooks",1,26/240)) %>%
+  ggplot(aes(x = seq(0.5,240,by=0.5))) +
+  geom_line(aes(y = value, col = measure)) +
+  geom_line(aes(y = cutoff), lty = 2, alpha = 0.5) +
+  theme_classic() +
+  facet_wrap(~measure, scales = "free_y", nrow = 2) +
+  scale_color_manual(values = c("orange","cornflowerblue")) +
+  labs(x = "observation")
+```
+
+```{r residual diagnostics}
+p_res1 <- residuals(model1, type = "pearson")
+d_res1 <- residuals(model1, type = "deviance")
+
+data.frame("pearson" = p_res1, "deviance" = d_res1) %>%
+  pivot_longer(everything(), names_to = "residual") %>%
+  ggplot(aes(x = seq(0.5,240,by=0.5), y = value, col = residual)) +
+  geom_point() +
+  facet_wrap(~residual, nrow = 2) +
+  theme_classic() +
+  scale_color_manual(values = c("darkgreen","purple")) +
+  labs(x = "observation")
+
+data.frame("pearson" = model1.diag$rp, "deviance" = model1.diag$rd) %>%
+  pivot_longer(everything(), names_to = "residual") %>%
+  ggplot(aes(x = seq(0.5,240,by=0.5), y = value, col = residual)) +
+  geom_point() +
+  facet_wrap(~residual, nrow = 2) +
+  theme_classic() +
+  scale_color_manual(values = c("darkgoldenrod2","orchid3")) +
+  labs(x = "observation", y = "standardized values")
+
+kable(data.frame("pearson" = p_res1, "deviance" = d_res1,"leverage" = model1.diag$h, "cooks" = model1.diag$cook,"p_standard" = model1.diag$rp, "d_standard" = model1.diag$rd),col.names = c("$\\hat{r}^{P}$","$\\hat{r}^{D}$","leverage","cooks","$\\hat{r}^{PS}$","$\\hat{r}^{DS}$"))
+```
+
