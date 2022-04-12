@@ -1,0 +1,126 @@
+---
+title: "melanomaAnalysis"
+author: "Michael Miller"
+date: "4/4/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Read data and process variables
+
+```{r}
+library(ggplot2)
+df <- readRDS("Dataset.RData")
+genes <- df[,c(9:ncol(df))]
+df$ageStd <- (df$age-mean(df$age))/sd(df$age)
+df$immuneClass <- ifelse(df$trans_class == "immune", 1, 0)
+df$pathStageFactor <- as.factor(df$stage)
+df$pathStageOrdered <- factor(df$stage,ordered=TRUE)
+df$non_infiltration_count <- df$tile_count-df$infiltration_count
+df$propInfiltrated <- df$infiltration_count/df$tile_count
+phenoList <- c("ageStd","gender","pathStageFactor","immuneClass")
+outcomeList <- c("infiltration_count","non_infiltration_count")
+```
+
+### Model 1 with general immune response genes
+
+```{r}
+genesList1 <- c("KLRD1","RFX5","DDX58","EIF2AK2","CD86","C5")
+df1 <- cbind(df[,outcomeList],df[,phenoList],genes[,genesList1])
+
+m1 <- glm(cbind(infiltration_count,non_infiltration_count) ~ ., data = df1, family = binomial())
+summary(m1)
+```
+
+### Model 1 with general immune response genes + inflammation genes
+
+```{r}
+genesList2 <- c(genesList1, c("IL17RB","TLR4","CCL28","IL17C"))
+df2 <- cbind(df[,outcomeList],df[,phenoList],genes[,genesList2])
+
+m2 <- glm(cbind(infiltration_count,non_infiltration_count) ~ ., data = df2, family = binomial())
+summary(m2)
+```
+
+### GLM Diagnostics Function
+
+```{r}
+diagnosticsGLM <- function(mod, dat) {
+  leverage <- influence(mod)$hat
+  rp <- resid(mod, type = "pearson")
+  rps <- rp/sqrt(1-leverage)
+  cooksD <- leverage/(ncol(dat)*(1-leverage))*rps^2
+  leverage.df <- data.frame(obs = 1:nrow(dat),
+                            Leverage=leverage,stdPearson=rps,cooksD=cooksD)
+  
+  p1 <- ggplot(data=leverage.df, aes(x=obs))+geom_line(aes(y=Leverage, colour="Leverage"))
+  plot(p1)
+  
+  p2 <- ggplot(data=leverage.df, aes(x=obs))+geom_line(aes(y=cooksD, colour="Cook'sDistance"))
+  plot(p2)
+  
+  p3 <- ggplot(data=leverage.df, aes(x=obs))+geom_point(aes(y=stdPearson, colour="Standardized Pearson Residuals"))+geom_hline(yintercept=0, linetype="solid", color = "blue")
+  plot(p3)
+  res <- c(p1,p2,p3)
+  names(res) <- c("p1","p2","p3")
+  return(res)
+}
+```
+
+### Model 2 Diagnostics
+
+```{r}
+diagRes <- diagnosticsGLM(m2,df2)
+```
+
+### Testing model with pathologic stage as ordinal response
+
+```{r}
+library(VGAM)
+phenoList <- c("ageStd","gender","propInfiltrated","immuneClass")
+outcomeList <- c("pathStageOrdered")
+genesList2 <- c(genesList1, c("IL17RB","TLR4","CCL28","IL17C"))
+df3 <- cbind(df[,outcomeList],df[,phenoList],genes[,genesList2])
+
+m3 = vglm(pathStageOrdered~.,data=df3, family=cumulative(parallel=T))
+summary(m3)
+```
+
+### VGLM Diagnostics
+
+```{r}
+diagnosticsVGLM <- function(mod, dat) {
+  hatvals <- as.matrix(hatvalues(mod))
+  residVals <- residuals(mod,type="pearson")
+  for (i in 1:3) {
+    leverage <- hatvals[,i]
+    rp <- residVals[,i]
+    rps <- rp/sqrt(1-leverage)
+    cooksD <- leverage/(ncol(dat)*(1-leverage))*rps^2
+    leverage.df <- data.frame(obs = 1:nrow(dat),
+                              Leverage=leverage,stdPearson=rps,cooksD=cooksD)
+    
+    p1 <- ggplot(data=leverage.df, aes(x=obs))+geom_line(aes(y=Leverage, colour="Leverage"))
+    plot(p1)
+    
+    p2 <- ggplot(data=leverage.df, aes(x=obs))+geom_line(aes(y=cooksD, colour="Cook'sDistance"))
+    plot(p2)
+    
+    p3 <- ggplot(data=leverage.df, aes(x=obs))+geom_point(aes(y=stdPearson, colour="Standardized Pearson Residuals"))+geom_hline(yintercept=0, linetype="solid", color = "blue")
+    plot(p3)
+  }
+}
+```
+
+### Proportional odds model diagnostics
+
+```{r}
+diagnosticsVGLM(m3, df3)
+```
+
+
+
+
