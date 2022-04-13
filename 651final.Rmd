@@ -1,0 +1,58 @@
+---
+title: "proj651"
+author: "Xin Luo"
+date: "2022/4/11"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE)
+setwd('C:/Users/luosa/OneDrive/Desktop/651/final')
+```
+
+```{r}
+library(tidyverse)
+library(gtable)
+library(gtsummary)
+library(gridExtra)
+library(knitr)
+library(car)
+library(boot)
+data <- readRDS("Dataset.RData")
+```
+
+# Interaction using age/sex/age and sex
+```{r}
+melanoma <- data %>% mutate(age_c = age - median(age),
+                            trans_class_bin = ifelse(trans_class == 'immune',1,0),
+                            prop_infiltrated = infiltration_count/tile_count)
+
+model3a <- glm(infiltration_count/tile_count ~ KLRD1+RFX5+DDX58+EIF2AK2+CCL28+CD86+C5+DCK+ 
+                 IL17RB+TLR4+IL17C +age_c+gender+stage+trans_class_bin + 
+                 age_c:KLRD1 + age_c:RFX5 + age_c:DDX58 + age_c:EIF2AK2 + age_c:CCL28
+                +age_c:CD86+age_c:C5+age_c:DCK+age_c:IL17RB+age_c:TLR4+age_c:IL17C, 
+              data = melanoma, 
+              weights = tile_count, 
+              family = binomial(link=logit))
+summary(model3a)
+
+model3b <- glm(prop_infiltrated ~ KLRD1+RFX5+DDX58+EIF2AK2+CCL28+CD86+C5+DCK+ 
+                 IL17RB+TLR4+IL17C +age_c+gender+stage+trans_class_bin + 
+                 gender:KLRD1 + gender:RFX5 + gender:DDX58 + gender:EIF2AK2 + gender:CCL28
+                +gender:CD86+gender:C5+gender:DCK+gender:IL17RB+gender:TLR4+gender:IL17C, 
+              data = melanoma, 
+              weights = tile_count, 
+              family = binomial(link=logit))
+summary(model3b)
+
+model3c <- glm(prop_infiltrated ~ KLRD1+RFX5+DDX58+EIF2AK2+CCL28+CD86+C5+DCK+ 
+                 IL17RB+TLR4+IL17C +age_c+gender+stage+trans_class_bin + 
+                 age_c:KLRD1 + age_c:RFX5 + age_c:DDX58 + age_c:EIF2AK2 + age_c:CCL28
+                +age_c:CD86+age_c:C5+age_c:DCK+age_c:IL17RB+age_c:TLR4+age_c:IL17C 
+                +gender:KLRD1 + gender:RFX5 + gender:DDX58 + gender:EIF2AK2 + gender:CCL28
+                +gender:CD86+gender:C5+gender:DCK+gender:IL17RB+gender:TLR4+gender:IL17C, 
+              data = melanoma, 
+              weights = tile_count, 
+              family = binomial(link=logit))
+summary(model3c)
+```
