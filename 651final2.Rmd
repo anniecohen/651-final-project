@@ -21,9 +21,8 @@ library(gridExtra)
 library(knitr)
 library(car)
 library(boot)
-data <- readRDS("Dataset.RData")
 
-melanoma <- readRDS("Dataset.RData") %>%
+data <- readRDS("Dataset.RData") %>%
   mutate(age_c = mean(age)-age,
          trans_class_bin = ifelse(trans_class == "immune",1,0),
          prop_infiltrated = infiltration_count/tile_count,
@@ -31,9 +30,7 @@ melanoma <- readRDS("Dataset.RData") %>%
                             ifelse(stage == 4, NA, "1-2"))) %>%
   filter(!is.na(stage_bin))
 
-data <- melanoma
-
-N = length(melanoma$id)
+N = length(data$id)
 ```
 
 ```{r}
@@ -41,21 +38,17 @@ data$y = 0
 data$y[data$survival == 'Long'] = 1
 # immune selected genes MC1R, AKT1, NAMPT, TNFRSF19, PAK2, SOS1, B2M 
 l1 <- glm(data$y ~ data$MC1R + as.factor(data$stage), family = 'binomial')
-l1$coefficients[2]
 l2 <- glm(data$y ~ data$AKT1 + as.factor(data$stage), family = 'binomial')
-l2$coefficients[2]
 l3 <- glm(data$y ~ data$NAMPT + as.factor(data$stage), family = 'binomial')
-l3$coefficients[2]
 l4 <- glm(data$y ~ data$TNFRSF19 + as.factor(data$stage), family = 'binomial')
-l4$coefficients[2]
 l5 <- glm(data$y ~ data$PAK2 + as.factor(data$stage), family = 'binomial')
-l5$coefficients[2]
 l6 <- glm(data$y ~ data$SOS1 + as.factor(data$stage), family = 'binomial')
-l6$coefficients[2]
 l7 <- glm(data$y ~ data$B2M + as.factor(data$stage), family = 'binomial')
-l7$coefficients[2]
 
 betas <- unname(c(l1$coefficients[2], l2$coefficients[2], l3$coefficients[2], l4$coefficients[2], l5$coefficients[2], l6$coefficients[2], l7$coefficients[2]))
+
+betas %>%
+  kable(col.names = "$\\hat{\\beta}$")
 ```
 
 ```{r}
@@ -153,7 +146,7 @@ summary(model2)
 model2.diag <- glm.diag(model2)
 data.frame("cooks" = model2.diag$cook, "leverage" = model2.diag$h) %>%
   pivot_longer(everything(), names_to = "measure") %>%
-  mutate(cutoff = ifelse(measure=="cooks",1,26/240)) %>%
+  mutate(cutoff = ifelse(measure=="cooks",1,26/N)) %>%
   ggplot(aes(x = seq(0.5,N,by=0.5))) +
   geom_line(aes(y = value, col = measure)) +
   geom_line(aes(y = cutoff), lty = 2, alpha = 0.5) +
@@ -187,12 +180,12 @@ data.frame("pearson" = model2.diag$rp, "deviance" = model2.diag$rd) %>%
 
 ```{r NEW interaction model}
 # model 3: baseline + selected top genes (2!!!) + immune response genes + age:immune response genes
-model3 <- glm(y ~ pathStage*MC1R + pathStage*AKT1 + pathStage*PAK2 + sex + age_c + pathStage*DDX58 + pathStage*KLRD1 + pathStage*TLR4, data = dd1, family = 'binomial')
+model4 <- glm(y ~ pathStage*MC1R + pathStage*AKT1 + pathStage*PAK2 + sex + age_c + pathStage*DDX58 + pathStage*KLRD1 + pathStage*TLR4, data = dd1, family = 'binomial')
 
-model4<- glm(y ~ pathStage*MC1R + pathStage*AKT1 + pathStage*PAK2 + sex + age_c, data = dd1, family = 'binomial')
+model3 <- glm(y ~ pathStage*MC1R + pathStage*AKT1 + pathStage*PAK2 + sex + age_c, data = dd1, family = 'binomial')
 
-summary(model3)
-summary(model4)
+gtsummary::tbl_regression(model3)
+gtsummary::tbl_regression(model4)
 
 anova(model3, model4, test = "LRT")
 anova(model1, model2, test = "LRT")
@@ -210,6 +203,18 @@ data.frame("cooks" = model3.diag$cook, "leverage" = model3.diag$h) %>%
   facet_wrap(~measure, scales = "free_y", nrow = 2) +
   scale_color_manual(values = c("orange","cornflowerblue")) +
   labs(x = "observation")
+
+model4.diag <- glm.diag(model4)
+data.frame("Cooks" = model4.diag$cook, "Leverage" = model4.diag$h) %>%
+  pivot_longer(everything(), names_to = "Measure") %>%
+  mutate(cutoff = ifelse(measure=="cooks",1,26/240)) %>%
+  ggplot(aes(x = seq(0.5,N,by=0.5))) +
+  geom_line(aes(y = value, col = measure)) +
+  geom_line(aes(y = cutoff), lty = 2, alpha = 0.5) +
+  theme_classic() +
+  facet_wrap(~measure, scales = "free_y", nrow = 2) +
+  scale_color_manual(values = c("orange","cornflowerblue")) +
+  labs(x = "Cbservation", y = "")
 ```
 
 ```{r}
