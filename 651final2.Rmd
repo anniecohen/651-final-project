@@ -27,25 +27,26 @@ data <- readRDS("Dataset.RData") %>%
          trans_class_bin = ifelse(trans_class == "immune",1,0),
          prop_infiltrated = infiltration_count/tile_count,
          stage_bin = ifelse(stage == 3, "3",
-                            ifelse(stage == 4, NA, "1-2"))) %>%
-  filter(!is.na(stage_bin))
+                            ifelse(stage == 4, NA, "1-2")),
+         sex = as.factor(gender),
+         pathStage = as.factor(stage_bin),
+         survival = as.factor(survival)) %>%
+  filter(!is.na(stage_bin) & !is.na(survival))
 
 N = length(data$id)
 ```
 
 ```{r}
-data$y = 0
-data$y[data$survival == 'Long'] = 1
 # immune selected genes MC1R, AKT1, NAMPT, TNFRSF19, PAK2, SOS1, B2M 
-l1 <- glm(data$y ~ data$MC1R + as.factor(data$stage), family = 'binomial')
-l2 <- glm(data$y ~ data$AKT1 + as.factor(data$stage), family = 'binomial')
-l3 <- glm(data$y ~ data$NAMPT + as.factor(data$stage), family = 'binomial')
-l4 <- glm(data$y ~ data$TNFRSF19 + as.factor(data$stage), family = 'binomial')
-l5 <- glm(data$y ~ data$PAK2 + as.factor(data$stage), family = 'binomial')
-l6 <- glm(data$y ~ data$SOS1 + as.factor(data$stage), family = 'binomial')
-l7 <- glm(data$y ~ data$B2M + as.factor(data$stage), family = 'binomial')
+l1 <- glm(survival ~ MC1R + as.factor(stage), data = data, family = 'binomial')
+l2 <- glm(survival ~ AKT1 + as.factor(stage), data = data, family = 'binomial')
+l3 <- glm(survival ~ NAMPT + as.factor(stage), data = data, family = 'binomial')
+l4 <- glm(survival ~ TNFRSF19 + as.factor(stage), data = data, family = 'binomial')
+l5 <- glm(survival ~ PAK2 + as.factor(stage), data = data, family = 'binomial')
+l6 <- glm(survival ~ SOS1 + as.factor(stage), data = data, family = 'binomial')
+l7 <- glm(survival ~ B2M + as.factor(stage), data = data, family = 'binomial')
 
-betas <- unname(c(l1$coefficients[2], l2$coefficients[2], l3$coefficients[2], l4$coefficients[2], l5$coefficients[2], l6$coefficients[2], l7$coefficients[2]))
+betas <- c(l1$coefficients[2], l2$coefficients[2], l3$coefficients[2], l4$coefficients[2], l5$coefficients[2], l6$coefficients[2], l7$coefficients[2])
 
 betas %>%
   kable(col.names = "$\\hat{\\beta}$")
@@ -64,23 +65,16 @@ cor(dd)
 ```
 
 ```{r}
-dd1 = as.data.frame(dd)
-dd1$y = data$y
-dd1$age_c = data$age - mean(data$age)
-dd1$sex = 0
-dd1$sex[data$gender == 'female'] = 1
-dd1$pathStage = as.factor(data$stage_bin)
-model = glm(y ~ MC1R + AKT1 + NAMPT + TNFRSF19 + PAK2 + SOS1 + B2M + pathStage, data = dd1, family = 'binomial')
-data.frame(names(vif(model)[-8]), unname(vif(model)[-8]), betas) %>%
+model = glm(survival ~ MC1R + AKT1 + NAMPT + TNFRSF19 + PAK2 + SOS1 + B2M + pathStage, data = data, family = 'binomial')
+data.frame(names(vif(model)[-8]), unname(vif(model)[-8]), unname(betas)) %>%
   kable(col.names = c("Gene","VIF","$\\hat{\\beta}$"))
-
 ```
 
 ```{r}
 # selected top genes: MC1R, AKT1, PAK2, SOS1, B2M
 # model 1: basline + selected top genes
 
-model1 <- glm(y ~ MC1R + AKT1 + PAK2 + sex + age_c + pathStage, data = dd1, family = 'binomial')
+model1 <- glm(survival ~ MC1R + AKT1 + PAK2 + sex + age_c + pathStage, data = data, family = 'binomial')
 summary(model1)
 
 gtsummary::tbl_regression(model1) %>%
@@ -103,7 +97,6 @@ data.frame("cooks" = model1.diag$cook, "leverage" = model1.diag$h) %>%
 ```
 
 ```{r }
-N=239
 p_res1 <- residuals(model1, type = "pearson")
 d_res1 <- residuals(model1, type = "deviance")
 data.frame("pearson" = p_res1, "deviance" = d_res1) %>%
@@ -128,16 +121,8 @@ data.frame("pearson" = model1.diag$rp, "deviance" = model1.diag$rd) %>%
 
 ```{r}
 # model 2: baseline + selected top genes + immune response genes
-dd1$CD86 = data$CD86
-dd1$DDX58 = data$DDX58
-dd1$KLRD1 = data$KLRD1
-dd1$TLR4 = data$TLR4
-dd1$DCK = data$DCK
-dd1$C5 = data$C5
-dd1$CCL28 = data$CCL28
-dd1$RFX5 = data$RFX5
-dd1$EIF2AK2 = data$EIF2AK2
-model2 <- glm(y ~ MC1R + AKT1 + PAK2 + sex + age_c + DDX58 + KLRD1 + TLR4 + pathStage, data = dd1, family = 'binomial')
+
+model2 <- glm(survival ~ MC1R + AKT1 + PAK2 + sex + age_c + DDX58 + KLRD1 + TLR4 + pathStage, data = data, family = 'binomial')
 summary(model2)
 ```
 
@@ -180,9 +165,9 @@ data.frame("pearson" = model2.diag$rp, "deviance" = model2.diag$rd) %>%
 
 ```{r NEW interaction model}
 # model 3: baseline + selected top genes (2!!!) + immune response genes + age:immune response genes
-model4 <- glm(y ~ pathStage*MC1R + pathStage*AKT1 + pathStage*PAK2 + sex + age_c + pathStage*DDX58 + pathStage*KLRD1 + pathStage*TLR4, data = dd1, family = 'binomial')
+model3 <- glm(survival ~ pathStage*MC1R + pathStage*AKT1 + pathStage*PAK2 + sex + age_c, data = data, family = 'binomial')
 
-model3 <- glm(y ~ pathStage*MC1R + pathStage*AKT1 + pathStage*PAK2 + sex + age_c, data = dd1, family = 'binomial')
+model4 <- glm(survival ~ pathStage*MC1R + pathStage*AKT1 + pathStage*PAK2 + sex + age_c + pathStage*DDX58 + pathStage*KLRD1 + pathStage*TLR4, data = data, family = 'binomial')
 
 gtsummary::tbl_regression(model3)
 gtsummary::tbl_regression(model4)
@@ -192,29 +177,35 @@ anova(model1, model2, test = "LRT")
 ```
 
 ```{r}
+lev3 = (2*length(coefficients(model3))+2)/N
 model3.diag <- glm.diag(model3)
-data.frame("cooks" = model3.diag$cook, "leverage" = model3.diag$h) %>%
-  pivot_longer(everything(), names_to = "measure") %>%
-  mutate(cutoff = ifelse(measure=="cooks",1,26/240)) %>%
+data.frame("Cooks" = model3.diag$cook, "Leverage" = model3.diag$h) %>%
+  pivot_longer(everything(), names_to = "Measure") %>%
+  mutate(cutoff = ifelse(Measure=="cooks",4/N,lev3)) %>%
   ggplot(aes(x = seq(0.5,N,by=0.5))) +
-  geom_line(aes(y = value, col = measure)) +
+  geom_line(aes(y = value, col = Measure)) +
   geom_line(aes(y = cutoff), lty = 2, alpha = 0.5) +
   theme_classic() +
-  facet_wrap(~measure, scales = "free_y", nrow = 2) +
+  facet_wrap(~Measure, scales = "free_y", nrow = 2) +
   scale_color_manual(values = c("orange","cornflowerblue")) +
   labs(x = "observation")
+
+lev4 = (2*length(coefficients(model4))+2)/N
 
 model4.diag <- glm.diag(model4)
 data.frame("Cooks" = model4.diag$cook, "Leverage" = model4.diag$h) %>%
   pivot_longer(everything(), names_to = "Measure") %>%
-  mutate(cutoff = ifelse(measure=="cooks",1,26/240)) %>%
+  mutate(cutoff = ifelse(Measure=="cooks",4/N,lev4)) %>%
   ggplot(aes(x = seq(0.5,N,by=0.5))) +
-  geom_line(aes(y = value, col = measure)) +
+  geom_line(aes(y = value, col = Measure)) +
   geom_line(aes(y = cutoff), lty = 2, alpha = 0.5) +
   theme_classic() +
-  facet_wrap(~measure, scales = "free_y", nrow = 2) +
+  theme(text = element_text(size = 16)) +
+  facet_wrap(~Measure, scales = "free_y", nrow = 2) +
   scale_color_manual(values = c("orange","cornflowerblue")) +
-  labs(x = "Cbservation", y = "")
+  labs(x = "Observation", y = "Value")
+
+ggsave("cookslev_mod3mod4.png")
 ```
 
 ```{r}
@@ -238,21 +229,16 @@ data.frame("pearson" = model3.diag$rp, "deviance" = model3.diag$rd) %>%
   labs(x = "observation", y = "standardized values")
 #kable(data.frame("pearson" = p_res3, "deviance" = d_res3,"leverage" = model3.diag$h, "cooks" = model3.diag$cook,"p_standard" = model3.diag$rp, "d_standard" = model3.diag$rd),col.names = c("$\\hat{r}^{P}$","$\\hat{r}^{D}$","leverage","cooks","$\\hat{r}^{PS}$","$\\hat{r}^{DS}$"))
 ```
-```{r}
+```{r NO}
 library(VGAM)
 # model 5: proportional odds model
-dd1$CD86 = data$CD86
-dd1$DDX58 = data$DDX58
-dd1$KLRD1 = data$KLRD1
-dd1$TLR4 = data$TLR4
-dd1$pathStage = as.factor(data$stage)
-model5 <- vglm(pathStage ~ MC1R + AKT1 + PAK2 + SOS1 + B2M + sex + age_c + CD86 + DDX58 + KLRD1 + TLR4, data = dd1, family = cumulative(parallel=T))
+model5 <- vglm(pathStage ~ MC1R + AKT1 + PAK2 + SOS1 + B2M + sex + age_c + CD86 + DDX58 + KLRD1 + TLR4, data = data, family = cumulative(parallel=T))
 summary(model5)
 ```
 
-```{r}
+```{r NO}
 model6 <- vglm(pathStage ~ MC1R + AKT1 + PAK2 + SOS1 + B2M + sex + age_c + CD86 + DDX58 + KLRD1 + TLR4
-                + age_c:CD86 + age_c:DDX58 + age_c:KLRD1 + age_c:TLR4 , data = dd1, family = cumulative(parallel = T))
+                + age_c:CD86 + age_c:DDX58 + age_c:KLRD1 + age_c:TLR4 , data = data, family = cumulative(parallel = T))
 summary(model6)
 ```
 
