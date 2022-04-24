@@ -30,7 +30,7 @@ data <- readRDS("Dataset.RData") %>%
                             ifelse(stage == 4, NA, "1-2")),
          sex = as.factor(gender),
          pathStage = as.factor(stage_bin),
-         survival = as.factor(survival)) %>%
+         survival = factor(survival, levels = c("Short","Long"))) %>%
   filter(!is.na(stage_bin) & !is.na(survival))
 
 N = length(data$id)
@@ -82,10 +82,11 @@ gtsummary::tbl_regression(model1) %>%
 ```
 
 ```{r residual diagnostics}
+lev1 <- (length(coefficients(model1))*2+2)/N
 model1.diag <- glm.diag(model1)
 data.frame("cooks" = model1.diag$cook, "leverage" = model1.diag$h) %>%
   pivot_longer(everything(), names_to = "measure") %>%
-  mutate(cutoff = ifelse(measure=="cooks",1,26/N)) %>%
+  mutate(cutoff = ifelse(measure=="cooks",4/N,lev1)) %>%
   ggplot(aes(x = seq(0.5,N,by=0.5))) +
   geom_line(aes(y = value, col = measure)) +
   geom_line(aes(y = cutoff), lty = 2, alpha = 0.5) +
@@ -93,7 +94,6 @@ data.frame("cooks" = model1.diag$cook, "leverage" = model1.diag$h) %>%
   facet_wrap(~measure, scales = "free_y", nrow = 2) +
   scale_color_manual(values = c("orange","cornflowerblue")) +
   labs(x = "observation")
-
 ```
 
 ```{r }
@@ -128,10 +128,11 @@ summary(model2)
 
 
 ```{r}
+lev2 = (length(coefficients(model2))*2+2)/N
 model2.diag <- glm.diag(model2)
 data.frame("cooks" = model2.diag$cook, "leverage" = model2.diag$h) %>%
   pivot_longer(everything(), names_to = "measure") %>%
-  mutate(cutoff = ifelse(measure=="cooks",1,26/N)) %>%
+  mutate(cutoff = ifelse(measure=="cooks",4/N,lev2)) %>%
   ggplot(aes(x = seq(0.5,N,by=0.5))) +
   geom_line(aes(y = value, col = measure)) +
   geom_line(aes(y = cutoff), lty = 2, alpha = 0.5) +
@@ -181,7 +182,7 @@ lev3 = (2*length(coefficients(model3))+2)/N
 model3.diag <- glm.diag(model3)
 data.frame("Cooks" = model3.diag$cook, "Leverage" = model3.diag$h) %>%
   pivot_longer(everything(), names_to = "Measure") %>%
-  mutate(cutoff = ifelse(Measure=="cooks",4/N,lev3)) %>%
+  mutate(cutoff = ifelse(Measure=="Cooks",4/N,lev3)) %>%
   ggplot(aes(x = seq(0.5,N,by=0.5))) +
   geom_line(aes(y = value, col = Measure)) +
   geom_line(aes(y = cutoff), lty = 2, alpha = 0.5) +
@@ -195,7 +196,7 @@ lev4 = (2*length(coefficients(model4))+2)/N
 model4.diag <- glm.diag(model4)
 data.frame("Cooks" = model4.diag$cook, "Leverage" = model4.diag$h) %>%
   pivot_longer(everything(), names_to = "Measure") %>%
-  mutate(cutoff = ifelse(Measure=="cooks",4/N,lev4)) %>%
+  mutate(cutoff = ifelse(Measure=="Cooks",4/N,lev4)) %>%
   ggplot(aes(x = seq(0.5,N,by=0.5))) +
   geom_line(aes(y = value, col = Measure)) +
   geom_line(aes(y = cutoff), lty = 2, alpha = 0.5) +
@@ -205,7 +206,18 @@ data.frame("Cooks" = model4.diag$cook, "Leverage" = model4.diag$h) %>%
   scale_color_manual(values = c("orange","cornflowerblue")) +
   labs(x = "Observation", y = "Value")
 
-ggsave("cookslev_mod3mod4.png")
+data.frame(cook = model4.diag$cook) %>%
+  ggplot(aes(x = 1:N, y = cook)) +
+  geom_hline(aes(yintercept = 4/N), col = "gray20", lty = 2) +
+  geom_line(col = "navy", size = 1) +
+  theme_classic() +
+  theme(text = element_text(size = 18)) +
+  labs(y = "Cook's Distance", x = "Observation")
+
+
+data[c(66,146,151,191),]
+
+#ggsave("cooks_mod4.png", width = 10, height = 5)
 ```
 
 ```{r}
@@ -227,8 +239,38 @@ data.frame("pearson" = model3.diag$rp, "deviance" = model3.diag$rd) %>%
   theme_classic() +
   scale_color_manual(values = c("darkgoldenrod2","orchid3")) +
   labs(x = "observation", y = "standardized values")
-#kable(data.frame("pearson" = p_res3, "deviance" = d_res3,"leverage" = model3.diag$h, "cooks" = model3.diag$cook,"p_standard" = model3.diag$rp, "d_standard" = model3.diag$rd),col.names = c("$\\hat{r}^{P}$","$\\hat{r}^{D}$","leverage","cooks","$\\hat{r}^{PS}$","$\\hat{r}^{DS}$"))
+
+p_res4 <- residuals(model4, type = "pearson")
+d_res4 <- residuals(model4, type = "deviance")
+data.frame("pearson" = p_res4, "deviance" = d_res4) %>%
+  pivot_longer(everything(), names_to = "residual") %>%
+  ggplot(aes(x = seq(0.5,N,by=0.5), y = value, col = residual)) +
+  geom_point() +
+  facet_wrap(~residual, nrow = 2) +
+  theme_classic() +
+  scale_color_manual(values = c("darkgreen","purple")) +
+  labs(x = "observation")
+data.frame("Pearson" = model4.diag$rp, "Deviance" = model4.diag$rd) %>%
+  pivot_longer(everything(), names_to = "Residual") %>%
+  ggplot(aes(x = seq(0.5,N,by=0.5), y = value, col = Residual)) +
+  geom_point() +
+  facet_wrap(~Residual, nrow = 2) +
+  theme_classic() +
+  theme(text = element_text(size = 16)) +
+  scale_color_manual(values = c("darkgoldenrod2","navy")) +
+  labs(x = "Observation", y = "Standardized Residuals")
+
+
+data.frame("Residual" = model4.diag$rp) %>%
+  ggplot(aes(x = 1:N, y = Residual)) +
+  geom_point(col = "navy") +
+  theme_classic() +
+  theme(text = element_text(size = 18)) +
+  labs(x = "Observation", y = "Standardized Residuals")
+
+ggsave("stdres_mod4.png", width = 10, height = 5)
 ```
+
 ```{r NO}
 library(VGAM)
 # model 5: proportional odds model
